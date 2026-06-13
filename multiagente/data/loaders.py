@@ -162,13 +162,27 @@ def _symbol_from_name(name: str) -> str:
 def load_dataset(data_dir: str, tf: str | None = None) -> dict[str, list[Bar]]:
     """Carica una cartella di storici, filtrando per timeframe se indicato.
 
-    Riconosce sia ``SIMBOLO_TF.csv`` sia ``SIMBOLO/TF.csv``. Ritorna
-    ``{simbolo_interno: [Bar, ...]}``.
+    ``data_dir`` può essere una cartella **oppure un file .zip** (comodo per
+    caricare tutto in una volta dall'iPhone): lo zip viene estratto in una
+    cartella temporanea e scansionato. Riconosce sia ``SIMBOLO_TF.csv`` sia
+    ``SIMBOLO/TF.csv``. Ritorna ``{simbolo_interno: [Bar, ...]}``.
     """
+    import tempfile
+    import zipfile
+
+    if os.path.isfile(data_dir) and zipfile.is_zipfile(data_dir):
+        tmp = tempfile.mkdtemp(prefix="storico_")
+        with zipfile.ZipFile(data_dir) as zf:
+            zf.extractall(tmp)
+        logger.info("ZIP estratto in %s", tmp)
+        data_dir = tmp
+
     want = _norm_tf(tf) if tf else None
     out: dict[str, list[Bar]] = {}
     for root, _dirs, files in os.walk(data_dir):
         for fn in files:
+            if fn.startswith(".") or fn.startswith("__"):
+                continue  # ignora file nascosti / __MACOSX
             if not fn.lower().endswith((".csv", ".txt", ".tsv")):
                 continue
             path = os.path.join(root, fn)
