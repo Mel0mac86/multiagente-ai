@@ -226,8 +226,11 @@ def load_dataset_by_tf(data_dir: str) -> dict[str, dict[str, list[Bar]]]:
 
 
 def _maybe_unzip(data_dir: str) -> str:
+    import shutil
     import tempfile
     import zipfile
+
+    data_dir = _maybe_download(data_dir)
 
     if os.path.isfile(data_dir) and zipfile.is_zipfile(data_dir):
         tmp = tempfile.mkdtemp(prefix="storico_")
@@ -235,7 +238,43 @@ def _maybe_unzip(data_dir: str) -> str:
             zf.extractall(tmp)
         logger.info("ZIP estratto in %s", tmp)
         return tmp
+    # singolo CSV: lo metto in una cartella temporanea così os.walk funziona
+    if os.path.isfile(data_dir):
+        tmp = tempfile.mkdtemp(prefix="storico_")
+        shutil.copy(data_dir, tmp)
+        return tmp
     return data_dir
+
+
+def _maybe_download(path_or_url: str) -> str:
+    """Se è un URL http(s), scarica in una cartella temporanea e ritorna il path.
+
+    Normalizza i link Dropbox (`?dl=0` → download diretto). Per altri servizi usa
+    un link di **download diretto** al file (zip o csv).
+    """
+    if not str(path_or_url).lower().startswith(("http://", "https://")):
+        return path_or_url
+
+    import tempfile
+    import urllib.parse
+    import urllib.request
+
+    url = path_or_url
+    if "dropbox.com" in url:
+        url = url.replace("dl=0", "dl=1")
+        url = url.replace("www.dropbox.com", "dl.dropboxusercontent.com")
+
+    name = os.path.basename(urllib.parse.urlparse(url).path) or "download"
+    if not name.lower().endswith((".zip", ".csv", ".txt", ".tsv")):
+        name += ".zip"  # assume archivio se l'estensione non è chiara
+    dest = os.path.join(tempfile.mkdtemp(prefix="dl_"), name)
+
+    logger.info("Scarico i dati da %s", url)
+    req = urllib.request.Request(url, headers={"User-Agent": "multiagente-ai/0.1"})
+    with urllib.request.urlopen(req, timeout=60) as r, open(dest, "wb") as f:  # noqa: S310
+        f.write(r.read())
+    logger.info("Scaricato in %s (%d byte)", dest, os.path.getsize(dest))
+    return dest
 
 
 def _iter_dataset(data_dir: str):

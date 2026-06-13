@@ -85,25 +85,26 @@ Il timeframe va scelto in base all'orizzonte che vuoi testare:
 
 ## Come passare i file dall'iPhone
 
-**Metodo consigliato — un solo ZIP, caricato in chat (nessun PC):**
+**Se l'app ti fa allegare solo foto** (caso comune), usa un **link** o **GitHub**:
 
-1. Nell'app **File** dell'iPhone metti gli export nella cartella `dati/` con i
-   nomi `SIMBOLO_TF.csv` (vedi sopra).
-2. Tieni premuto sulla cartella → **Comprimi**: ottieni `dati.zip`.
-3. **Allega lo `.zip` qui in chat.** Il backtest gira nel cloud: lo eseguo io e
-   ti rimando il `report.html` (da aprire in Safari). Non ti serve installare nulla.
+- **Link a uno ZIP (consigliato).** Carica `dati.zip` su iCloud Drive, **Dropbox**
+  o Google Drive, copia il **link di download diretto** e incollalo in chat.
+  Lo scarico io:
+  ```bash
+  python -m multiagente.backtest --source files --data-dir "<LINK>.zip" --by-tf
+  ```
+  (Per Dropbox va bene anche il link `?dl=0`: lo converto in automatico. iCloud:
+  usa "Copia link"; Drive: usa un link di **download diretto** al file.)
+- **GitHub.** Carica i CSV in una cartella `dati/` del repo (da github.com in
+  Safari, "Add file → Upload files", attiva "Richiedi sito desktop"); poi li
+  scarico/eseguo io dal branch.
+- **Verifica rapida del formato senza file.** Incolla in chat le **prime 5
+  righe** di un CSV come **testo** (non foto), oppure mandami uno **screenshot**:
+  mi basta per confermare/adattare il parser prima di processare tutto.
 
-Il loader accetta direttamente lo zip:
-
-```bash
-python -m multiagente.backtest --source files --data-dir dati.zip --tf 1h
-```
-
-**Alternative** (se preferisci eseguire tu):
-
-- **Sull'iPhone** con **a-Shell**/**Pythonista**: punta `--data-dir` alla cartella
-  (o allo zip) nell'app File.
-- **Su PC/Mac**: copia la cartella via AirDrop/iCloud e lancia lo stesso comando.
+**Se invece puoi allegare file:** comprimi la cartella (`dati.zip`) e allegala;
+in alternativa esegui tu su iPhone con **a-Shell**/**Pythonista** puntando
+`--data-dir` alla cartella o allo zip.
 
 > Se i tuoi file hanno un formato particolare che il loader non riconosce,
 > mandami **2-3 righe di esempio** (header + un paio di righe dati) e aggiungo il
