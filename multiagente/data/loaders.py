@@ -52,6 +52,11 @@ _SYMBOL_ALIASES = {
 
 _TF_RE = re.compile(r"(?i)(?:^|[_\-\.])(\d+\s*(?:m|min|h|hour|d|day|w|week)|m\d+|h\d+|daily|weekly)(?:$|[_\-\.])")
 
+# MT4/MT5: il periodo nel nome file è in MINUTI (es. EURUSD60 = H1, XAUUSD1440 = D1).
+_MT4_PERIODS = {"1": "1m", "5": "5m", "15": "15m", "30": "30m", "60": "1h",
+                "240": "4h", "1440": "1d", "10080": "1w", "43200": "1mo"}
+_MT4_NAME_RE = re.compile(r"^([A-Za-z]{3,})(\d{1,5})$")
+
 
 def _to_float(s: str) -> float | None:
     s = s.strip().replace(" ", "")
@@ -159,6 +164,30 @@ def _symbol_from_name(name: str) -> str:
     return _SYMBOL_ALIASES.get(key, name.upper())
 
 
+def _parse_name(stem: str) -> tuple[str, str | None]:
+    """Estrae (simbolo_grezzo, timeframe) dal nome file (senza estensione).
+
+    Gestisce ``SIMBOLO_TF`` / ``SIMBOLO-TF`` e la convenzione MT4 concatenata
+    ``SIMBOLO<minuti>`` (es. EURUSD60). Per evitare di spezzare gli indici con
+    numeri (US30, GER40, SP500), la parte alfabetica deve avere ≥3 lettere e il
+    numero finale deve essere un periodo MT4 valido.
+    """
+    m = _TF_RE.search(stem)
+    if m:
+        tf = _norm_tf(m.group(1))
+        sym = _TF_RE.sub("", stem).strip("_-. ")
+        return sym, tf
+    # separatore + minuti MT4 (es. US30_60 -> US30, 1h)
+    sep = re.match(r"^(.*?)[_\-.](\d{1,5})$", stem)
+    if sep and sep.group(2) in _MT4_PERIODS:
+        return sep.group(1), _MT4_PERIODS[sep.group(2)]
+    # concatenato SIMBOLO+minuti (es. EURUSD60 -> EUR/USD, 1h)
+    mm = _MT4_NAME_RE.match(stem)
+    if mm and mm.group(2) in _MT4_PERIODS:
+        return mm.group(1), _MT4_PERIODS[mm.group(2)]
+    return stem, None
+
+
 def load_dataset(data_dir: str, tf: str | None = None) -> dict[str, list[Bar]]:
     """Carica una cartella di storici, filtrando per timeframe se indicato.
 
@@ -187,16 +216,15 @@ def load_dataset(data_dir: str, tf: str | None = None) -> dict[str, list[Bar]]:
                 continue
             path = os.path.join(root, fn)
             stem = os.path.splitext(fn)[0]
-            # timeframe dal nome file, dalla sottocartella o dal nome file stesso
-            tf_match = _TF_RE.search(fn) or _TF_RE.search(stem)
-            file_tf = _norm_tf(tf_match.group(1)) if tf_match else _norm_tf(stem)
             sub = os.path.basename(root)
-            file_tf = _norm_tf(sub) if (want and _norm_tf(sub) == want) else file_tf
-            if want and file_tf != want and _norm_tf(sub) != want:
+            sym_raw, file_tf = _parse_name(stem)
+            # se il timeframe non è nel nome file, prova dalla sottocartella
+            if file_tf is None and sub:
+                file_tf = _norm_tf(sub)
+            symbol = _symbol_from_name(sym_raw or sub)
+            if want is not None and want not in {file_tf, _norm_tf(sub)}:
                 continue
-            # simbolo: parte del filename senza il pezzo tf, oppure dalla cartella
-            base = _TF_RE.sub("", stem).strip("_-. ")
-            symbol = _symbol_from_name(base or sub)
+            file_tf = file_tf or "?"
             try:
                 bars = load_ohlcv_file(path)
             except (ValueError, OSError) as exc:

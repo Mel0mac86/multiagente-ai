@@ -32,6 +32,24 @@ data,apertura,massimo,minimo,chiusura
 2024-01-01 00:00,2400.0,2403.1,2399.2,2401.8
 ```
 
+## MetaTrader 4 (export "History Center")
+
+I CSV di MT4 sono già supportati **così come sono**: nessuna intestazione,
+separati da virgola, data `YYYY.MM.DD`, righe `DATE,TIME,OPEN,HIGH,LOW,CLOSE,VOL`.
+
+MT4 nomina i file con il **periodo in minuti**: il loader lo converte da solo.
+
+| File MT4 | Periodo | Interpretato come |
+|---|---|---|
+| `EURUSD1.csv` | M1 | EUR/USD · `1m` |
+| `EURUSD15.csv` | M15 | EUR/USD · `15m` |
+| `EURUSD60.csv` | H1 | EUR/USD · `1h` |
+| `XAUUSD240.csv` | H4 | XAU/USD · `4h` |
+| `GBPUSD1440.csv` | D1 | GBP/USD · `1d` |
+
+Gli indici con numeri nel nome (`US30`, `GER40`, `SP500`) non vengono spezzati;
+se vuoi indicarne il periodo usa l'underscore: `US30_60.csv` → US30 · `1h`.
+
 ## Convenzione delle cartelle (consigliata)
 
 Metti i file in una cartella e nomina così (il loader estrae **simbolo** e

@@ -107,12 +107,15 @@ def derive_profile(symbol: str, bars) -> PairProfile:
         vol = VolatilityBucket.EXTREME
 
     u = symbol.upper()
+    alpha = u.replace("/", "")
+    # ordine: commodity prima di forex (XAUUSD è oro, non FX); poi FX a 6 lettere
     if any(k in u for k in ("BTC", "ETH", "USDT", "USDC", "SOL", "-USD")):
         ac, cluster, lev, sess = AssetClass.CRYPTO, "crypto_generic", 5.0, "24/7"
-    elif "/" in symbol and len(u.replace("/", "")) == 6:
-        ac, cluster, lev, sess = AssetClass.FOREX, "fx_generic", 30.0, "fx_sessions"
-    elif any(k in u for k in ("XAU", "XAG", "OIL", "WTI", "GAS", "GC", "CL")):
+    elif any(k in u for k in ("XAU", "XAG", "OIL", "WTI", "GAS", "NGAS")):
         ac, cluster, lev, sess = AssetClass.COMMODITY, "commodity_generic", 10.0, "fx_sessions"
+    elif len(alpha) == 6 and alpha.isalpha() and alpha[3:] in (
+        "USD", "JPY", "EUR", "GBP", "CHF", "AUD", "CAD", "NZD"):
+        ac, cluster, lev, sess = AssetClass.FOREX, "fx_generic", 30.0, "fx_sessions"
     else:
         ac, cluster, lev, sess = AssetClass.EQUITY, "equity_generic", 2.0, "rth"
 
