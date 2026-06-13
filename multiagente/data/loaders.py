@@ -164,24 +164,37 @@ def _symbol_from_name(name: str) -> str:
     return _SYMBOL_ALIASES.get(key, name.upper())
 
 
+# MetaTrader 5: suffisso timeframe nel nome (AAPL_H1, XAU_MN1, AUDCAD_D1).
+_MT5_TF = {
+    "m1": "1m", "m5": "5m", "m15": "15m", "m30": "30m",
+    "h1": "1h", "h4": "4h", "d1": "1d", "w1": "1w", "mn1": "1mo", "mn": "1mo",
+}
+
+
 def _parse_name(stem: str) -> tuple[str, str | None]:
     """Estrae (simbolo_grezzo, timeframe) dal nome file (senza estensione).
 
-    Gestisce ``SIMBOLO_TF`` / ``SIMBOLO-TF`` e la convenzione MT4 concatenata
-    ``SIMBOLO<minuti>`` (es. EURUSD60). Per evitare di spezzare gli indici con
-    numeri (US30, GER40, SP500), la parte alfabetica deve avere ≥3 lettere e il
-    numero finale deve essere un periodo MT4 valido.
+    Gestisce: suffisso MT5 ``SIMBOLO_H1``/``_M15``/``_D1``/``_MN1``;
+    ``SIMBOLO_TF`` con unità (``_1h``, ``_15m``); convenzione MT4 concatenata
+    ``SIMBOLO<minuti>`` (es. EURUSD60). Per non spezzare gli indici con numeri
+    (US30, GER40), la parte alfabetica deve avere ≥3 lettere e il numero finale
+    essere un periodo MT4 valido.
     """
+    # 1) suffisso MT5 dopo separatore (caso più comune negli export MT5)
+    parts = re.split(r"[_\-.]", stem)
+    if len(parts) >= 2 and parts[-1].lower() in _MT5_TF:
+        return "_".join(parts[:-1]), _MT5_TF[parts[-1].lower()]
+    # 2) timeframe con unità esplicita (_1h, _15m, 1d...)
     m = _TF_RE.search(stem)
     if m:
         tf = _norm_tf(m.group(1))
         sym = _TF_RE.sub("", stem).strip("_-. ")
         return sym, tf
-    # separatore + minuti MT4 (es. US30_60 -> US30, 1h)
+    # 3) separatore + minuti MT4 (es. US30_60 -> US30, 1h)
     sep = re.match(r"^(.*?)[_\-.](\d{1,5})$", stem)
     if sep and sep.group(2) in _MT4_PERIODS:
         return sep.group(1), _MT4_PERIODS[sep.group(2)]
-    # concatenato SIMBOLO+minuti (es. EURUSD60 -> EUR/USD, 1h)
+    # 4) concatenato SIMBOLO+minuti (es. EURUSD60 -> EUR/USD, 1h)
     mm = _MT4_NAME_RE.match(stem)
     if mm and mm.group(2) in _MT4_PERIODS:
         return mm.group(1), _MT4_PERIODS[mm.group(2)]

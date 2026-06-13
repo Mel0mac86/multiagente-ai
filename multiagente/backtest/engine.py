@@ -36,7 +36,10 @@ class HistoricalFeed(FeedAdapter):
         self.series = series
         self.window = window
         self.i = 0
-        self.length = min(len(s) for s in series.values())
+        # lunghezza = la serie più lunga; i simboli più corti smettono di operare
+        # quando finiscono i loro dati (gestito in _simulate), senza troncare gli altri.
+        self.length = max(len(s) for s in series.values())
+        self.lengths = {sym: len(b) for sym, b in series.items()}
 
     def advance(self) -> bool:
         if self.i + 1 >= self.length:
@@ -48,7 +51,7 @@ class HistoricalFeed(FeedAdapter):
         bars = self.series.get(symbol)
         if bars is None:
             raise KeyError(symbol)
-        bar = bars[self.i]
+        bar = bars[min(self.i, len(bars) - 1)]  # clamp: simboli finiti tengono l'ultimo prezzo
         mid = bar.price
         spread = mid * 0.0001
         window = [b.price for b in bars[max(0, self.i - self.window + 1): self.i + 1]]
@@ -143,7 +146,8 @@ def _simulate(series: dict[str, list[Bar]], freeze_at: int | None = None) -> Sim
             if snap is None:
                 continue
             prices[symbol] = snap.mid
-            if kill.engaged:
+            # simbolo con dati esauriti: tieni il prezzo per il mark-to-market ma non operare
+            if feed.i >= feed.lengths.get(symbol, feed.length) or kill.engaged:
                 continue
             signals = router.route(symbol)
             if not signals:
@@ -213,6 +217,7 @@ def run_backtest(
 TF_TO_HORIZON = {
     "1m": "scalping", "5m": "scalping", "15m": "day_trading", "30m": "day_trading",
     "1h": "day_trading", "4h": "day_trading", "1d": "investor", "1w": "investor",
+    "1mo": "investor",
 }
 
 
