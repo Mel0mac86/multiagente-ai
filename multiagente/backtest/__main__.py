@@ -25,8 +25,10 @@ from .walkforward import run_walk_forward
 def main() -> None:
     p = argparse.ArgumentParser(description="Backtest del sistema multi-agente")
     p.add_argument("--mode", choices=["single", "walkforward"], default="single")
-    p.add_argument("--source", choices=["synthetic", "yahoo"], default="synthetic",
-                   help="sorgente dati: sintetica (offline) o Yahoo Finance (reale)")
+    p.add_argument("--source", choices=["synthetic", "yahoo", "files"], default="synthetic",
+                   help="dati: sintetica (offline), Yahoo (reale), files (tuoi CSV)")
+    p.add_argument("--data-dir", help="cartella dei tuoi CSV (con --source files)")
+    p.add_argument("--tf", help="timeframe da caricare, es. 1h, 15m, 1d (con --source files)")
     p.add_argument("--steps", type=int, default=300, help="barre (sorgente sintetica)")
     p.add_argument("--seed", type=int, default=0, help="seed (sorgente sintetica)")
     p.add_argument("--folds", type=int, default=4, help="numero di fold (walk-forward)")
@@ -42,11 +44,13 @@ def main() -> None:
         format="%(levelname)s %(name)s: %(message)s",
     )
 
-    # Per la sorgente Yahoo costruiamo le serie qui (così range/interval valgono).
+    # Per Yahoo/files costruiamo le serie qui (così range/interval/data-dir valgono).
     series = None
     if args.source == "yahoo":
         series = build_series(source="yahoo", steps=args.steps, seed=args.seed,
                               range_=args.range, interval=args.interval)
+    elif args.source == "files":
+        series = build_series(source="files", data_dir=args.data_dir, tf=args.tf)
 
     if args.mode == "walkforward":
         result = run_walk_forward(series=series, steps=args.steps, seed=args.seed,

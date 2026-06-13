@@ -39,11 +39,13 @@ DEFAULT_BASE_PRICES = {
 }
 
 
-def build_system(feeds: list | None = None) -> dict:
+def build_system(feeds: list | None = None, extra_profiles: dict | None = None) -> dict:
     """Costruisce e collega tutti i componenti, restituendoli in un dict.
 
     ``feeds`` permette di iniettare feed custom (es. lo storico per il backtest);
     se omesso usa due StubFeed (primario + secondario) per la demo live.
+    ``extra_profiles`` aggiunge profili di coppia derivati (es. simboli portati
+    dall'utente non presenti nel registro statico).
     """
     s = SETTINGS
 
@@ -51,7 +53,7 @@ def build_system(feeds: list | None = None) -> dict:
         feeds = [StubFeed("primario", DEFAULT_BASE_PRICES), StubFeed("secondario", DEFAULT_BASE_PRICES)]
     market_data = MarketDataAgent(feeds, s.fault)
 
-    classifier = PairClassifierAgent()
+    classifier = PairClassifierAgent(extra_profiles=extra_profiles)
     regime_detector = RegimeDetectorAgent()
     llm = ClaudeClient(s.llm, s.fault)
     sentiment = NewsSentimentAgent(llm)

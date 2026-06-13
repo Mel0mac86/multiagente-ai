@@ -73,8 +73,16 @@ auto-adattamento descritto in `docs/ARCHITETTURA.md` §9.
 ```bash
 python -m multiagente.backtest                          # sintetico, 300 step
 python -m multiagente.backtest --source yahoo            # DATI REALI (Yahoo, no key)
+python -m multiagente.backtest --source files --data-dir ./dati --tf 1h   # I TUOI CSV
 python -m multiagente.backtest --mode walkforward --folds 4 --steps 600
 ```
+
+**I tuoi storici (consigliato).** Se hai già i dati divisi per timeframe, usali
+direttamente: `--source files --data-dir <cartella> --tf 1h`. Il loader
+riconosce da solo i formati comuni (TradingView, MetaTrader/MT4-5, Dukascopy,
+header in italiano) e mappa i nomi file ai simboli. **Vedi
+[docs/DATI.md](docs/DATI.md)** per formati, convenzione delle cartelle e come
+trasferire i file dall'iPhone.
 
 **Dati reali (Yahoo Finance, nessuna API key).** `--source yahoo` scarica OHLCV
 reali per tutti e 4 i mercati (crypto `BTC-USD`, forex `EURUSD=X`, indici

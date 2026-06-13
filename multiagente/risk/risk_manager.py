@@ -88,10 +88,13 @@ class RiskManagerAgent:
         # L'esposizione viene registrata al fill (register_fill) e rilasciata alla
         # chiusura (release): così un ordine non eseguito non lascia esposizione fantasma.
         order_type = "limit" if sig.horizon.value == "scalping" else "market"
+        # arrotonda al lotto solo se definito (lot_size>0); altrimenti quantità libera
+        if profile.lot_size > 0:
+            quantity = round(quantity / profile.lot_size) * profile.lot_size or profile.lot_size
         return Order(
             symbol=sig.symbol,
             side=sig.side,
-            quantity=round(quantity / profile.lot_size) * profile.lot_size or profile.lot_size,
+            quantity=quantity,
             order_type=order_type,
             limit_price=sig.entry if order_type == "limit" else None,
             stop=sig.stop,

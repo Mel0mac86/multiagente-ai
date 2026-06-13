@@ -86,11 +86,21 @@ def build_series(
     from ..main import DEFAULT_BASE_PRICES
 
     base_prices = base_prices or DEFAULT_BASE_PRICES
+    if source == "files":
+        # storico fornito dall'utente (cartella di CSV per timeframe)
+        from ..data.loaders import load_dataset
+
+        data_dir = provider_kwargs.get("data_dir")
+        if not data_dir:
+            raise ValueError("source='files' richiede data_dir")
+        return load_dataset(data_dir, tf=provider_kwargs.get("tf"))
+
     if source == "yahoo":
         try:
             from ..data.providers import ProviderError, yahoo_series
 
-            return yahoo_series(**provider_kwargs)
+            yk = {k: v for k, v in provider_kwargs.items() if k in ("symbols", "range_", "interval", "timeout")}
+            return yahoo_series(**yk)
         except ProviderError as exc:
             logger.warning("Dati reali non disponibili (%s): uso serie sintetiche", exc)
 
@@ -106,8 +116,14 @@ def _simulate(series: dict[str, list[Bar]], freeze_at: int | None = None) -> Sim
     Se ``freeze_at`` è dato, al raggiungimento di quello step congela
     l'adattamento di tutti gli agenti e marca l'inizio della fase out-of-sample.
     """
+    # profili derivati dai dati per i simboli non presenti nel registro statico
+    from ..data.pair_classifier import _PROFILES, derive_profile
+
+    extra_profiles = {
+        sym: derive_profile(sym, bars) for sym, bars in series.items() if sym not in _PROFILES
+    }
     feed = HistoricalFeed(series)
-    sys = build_system(feeds=[feed])
+    sys = build_system(feeds=[feed], extra_profiles=extra_profiles)
     router, validator = sys["router"], sys["validator"]
     risk, execution, portfolio = sys["risk"], sys["execution"], sys["portfolio"]
     classifier, market_data, kill = sys["classifier"], sys["market_data"], sys["kill"]

@@ -70,11 +70,57 @@ _PROFILES: dict[str, PairProfile] = {
 class PairClassifierAgent:
     """Restituisce (con cache) il profilo di uno strumento."""
 
-    def __init__(self, profiles: dict[str, PairProfile] | None = None) -> None:
+    def __init__(
+        self,
+        profiles: dict[str, PairProfile] | None = None,
+        extra_profiles: dict[str, PairProfile] | None = None,
+    ) -> None:
         self._profiles = profiles or dict(_PROFILES)
+        if extra_profiles:
+            self._profiles.update(extra_profiles)
 
     def profile(self, symbol: str) -> PairProfile | None:
         return self._profiles.get(symbol)
 
     def known_symbols(self) -> list[str]:
         return list(self._profiles)
+
+
+def derive_profile(symbol: str, bars) -> PairProfile:
+    """Stima un profilo dai dati per uno strumento non presente nel registro.
+
+    Volatilità dal sigma dei rendimenti; asset class indovinata dal nome. Usato
+    quando l'utente porta storici di strumenti non ancora mappati.
+    """
+    import statistics
+
+    prices = [b.price for b in bars]
+    rets = [(b - a) / a for a, b in zip(prices, prices[1:]) if a]
+    sigma = statistics.pstdev(rets) if len(rets) > 1 else 0.0
+    if sigma < 0.005:
+        vol = VolatilityBucket.LOW
+    elif sigma < 0.015:
+        vol = VolatilityBucket.MID
+    elif sigma < 0.04:
+        vol = VolatilityBucket.HIGH
+    else:
+        vol = VolatilityBucket.EXTREME
+
+    u = symbol.upper()
+    if any(k in u for k in ("BTC", "ETH", "USDT", "USDC", "SOL", "-USD")):
+        ac, cluster, lev, sess = AssetClass.CRYPTO, "crypto_generic", 5.0, "24/7"
+    elif "/" in symbol and len(u.replace("/", "")) == 6:
+        ac, cluster, lev, sess = AssetClass.FOREX, "fx_generic", 30.0, "fx_sessions"
+    elif any(k in u for k in ("XAU", "XAG", "OIL", "WTI", "GAS", "GC", "CL")):
+        ac, cluster, lev, sess = AssetClass.COMMODITY, "commodity_generic", 10.0, "fx_sessions"
+    else:
+        ac, cluster, lev, sess = AssetClass.EQUITY, "equity_generic", 2.0, "rth"
+
+    return PairProfile(
+        symbol=symbol, asset_class=ac,
+        liquidity_tier=LiquidityTier.T2,  # prudente: niente scalping aggressivo
+        typical_spread_bps=max(1.0, sigma * 1e4 * 0.1),
+        volatility_bucket=vol, news_sensitivity=NewsSensitivity.MID,
+        correlation_cluster=cluster, tick_size=0.0, lot_size=0.0,  # 0 = nessun arrotondamento
+        leverage_cap=lev, session_profile=sess,
+    )
