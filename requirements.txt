@@ -1,0 +1,16 @@
+# Agenti LLM (Claude). Opzionale: senza chiave si usa il fallback euristico.
+anthropic>=0.69.0
+
+# Quant/ML e dati. Versioni minime indicative.
+numpy>=1.26
+pandas>=2.1
+
+# Opzionali per estensioni ML (regime detection avanzato, ecc.)
+# scikit-learn>=1.4
+# hmmlearn>=0.3
+
+# Opzionali per la dashboard web (la dashboard non serve per il backtest, che
+# genera un report HTML autonomo). Il backtest gira con la sola libreria standard.
+# fastapi>=0.110
+# uvicorn>=0.29
+
