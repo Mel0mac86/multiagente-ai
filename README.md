@@ -50,8 +50,51 @@ multiagente/
 │   └── execution.py       # ExecutionAgent + broker adapter (paper/live)
 ├── portfolio/
 │   └── portfolio.py       # PnL, performance, loop di feedback per l'adattamento
+├── backtest/
+│   ├── series.py          # serie storiche (sintetiche seeded o da CSV)
+│   ├── metrics.py         # Sharpe, max drawdown, profit factor, hit-rate…
+│   ├── engine.py          # replay storico sulla STESSA pipeline di agenti
+│   ├── report.py          # report HTML autonomo e mobile-first
+│   └── __main__.py        # CLI: python -m multiagente.backtest
+├── web/
+│   └── app.py             # dashboard FastAPI opzionale (interattiva)
 └── main.py                # cablaggio del sistema + loop demo
 ```
+
+## Backtest
+
+Il backtest fa **replay di dati storici attraverso la stessa identica pipeline**
+del runtime live (router → validator → risk → execution → portfolio): nessuna
+logica separata, quindi i risultati sono rappresentativi. Calcola rendimento,
+**Sharpe**, **max drawdown**, **profit factor**, **hit-rate** — complessivi e
+scomposti **per agente e per regime**, alimentando lo stesso loop di
+auto-adattamento descritto in `docs/ARCHITETTURA.md` §9.
+
+```bash
+python -m multiagente.backtest                      # 300 step → report.html
+python -m multiagente.backtest --steps 500 --seed 1 --out report.html
+```
+
+Con dati reali, sostituisci il generatore sintetico passando un CSV
+(`multiagente/backtest/series.py:load_csv_series`, colonna `close`).
+
+## Uso su iPhone
+
+Due modi, dal più semplice:
+
+1. **Report HTML autonomo (consigliato, niente server).** `python -m
+   multiagente.backtest` genera `report.html`: un singolo file responsive (CSS
+   e grafico SVG inline, zero dipendenze). Salvalo nell'app **File** o invialo a
+   te stesso e aprilo in **Safari** — funziona anche offline.
+2. **Dashboard web interattiva.** Avvia il server su un PC/Mac/VPS e aprilo da
+   Safari sull'iPhone (stessa rete o URL pubblico):
+   ```bash
+   pip install fastapi uvicorn
+   uvicorn multiagente.web.app:app --host 0.0.0.0 --port 8000
+   ```
+   Poi visita `http://<ip-del-pc>:8000`. Per eseguire *tutto* sul telefono puoi
+   usare app come **a-Shell** o **Pythonista** (il backtest è puro Python e non
+   richiede dipendenze esterne).
 
 ## Avvio rapido
 

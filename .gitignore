@@ -7,3 +7,7 @@ venv/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+
+# Report di backtest generati
+report.html
+*.report.html

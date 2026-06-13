@@ -438,4 +438,44 @@ ed è limitata entro guardrail per evitare derive.
 | Risk Manager (§5.5) | `multiagente/risk/risk_manager.py` |
 | Execution (§5.5) | `multiagente/execution/execution.py` |
 | Portfolio + feedback (§5.5, §9) | `multiagente/portfolio/portfolio.py` |
+| Backtest (motore, metriche, report) (§11) | `multiagente/backtest/*.py` |
+| Dashboard web (opzionale) | `multiagente/web/app.py` |
 | Cablaggio + loop demo | `multiagente/main.py` |
+
+---
+
+## 11. Backtesting
+
+**Principio: stessa pipeline in backtest e in produzione.** Il backtest non
+reimplementa la logica: fa *replay* di dati storici attraverso gli stessi
+componenti (Router → Validator → Risk → Execution paper → Portfolio). Così ciò
+che si misura è esattamente ciò che gira live, e si evita il classico divario
+backtest/produzione.
+
+**Flusso.**
+1. `HistoricalFeed` espone l'interfaccia `FeedAdapter` e fa avanzare un indice
+   temporale condiviso: a ogni step restituisce lo `MarketSnapshot` della barra
+   corrente (più la finestra recente per medie/indicatori).
+2. L'engine itera le barre e, per ogni strumento, esegue la pipeline completa.
+3. Le posizioni si chiudono al tocco di stop/target nel `mark_to_market`; ogni
+   trade chiuso è registrato e retroalimenta gli agenti (auto-adattamento §9).
+4. A fine serie le posizioni residue sono chiuse forzatamente.
+
+**Metriche** (`backtest/metrics.py`): rendimento totale, volatilità e **Sharpe**
+annualizzati, **max drawdown**, **profit factor**, **hit-rate**, numero di trade
+— complessivi e **scomposti per agente e per regime**, per capire *dove* e *in
+quale contesto* ogni agente genera (o brucia) valore.
+
+**Dati.** Lo scaffold genera serie sintetiche a segmenti di regime
+(trend/range/shock) deterministiche per seed (utile offline). Per dati reali si
+usa `load_csv_series` (CSV con colonna `close`); l'estensione naturale è un
+loader storico dal provider di mercato, mantenendo invariato il resto.
+
+**Realismo e limiti.** Il `PaperBroker` modella spread, slippage e fee; il Risk
+Manager rilascia l'esposizione alla chiusura. Restano semplificazioni tipiche da
+irrobustire prima di conclusioni operative: *look-ahead bias* (usare solo dati
+fino alla barra corrente — qui rispettato dalla finestra), *survivorship bias*
+nel paniere, modello di slippage più fedele per ordini grandi/illiquidi,
+gestione realistica di gap e funding, e **walk-forward** con
+ottimizzazione out-of-sample per validare l'auto-adattamento (§9) senza
+overfitting.

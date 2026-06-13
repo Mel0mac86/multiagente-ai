@@ -24,6 +24,7 @@ class RiskManagerAgent:
         self.kill = kill_switch
         # esposizione corrente per cluster (in multipli del capitale)
         self._cluster_exposure: dict[str, float] = {}
+        self._exposure_by_symbol: dict[str, tuple[str, float]] = {}
         self._gross_exposure = 0.0
         self._day_start_equity = capital
         self._equity = capital
@@ -83,11 +84,9 @@ class RiskManagerAgent:
             logger.info("Limite esposizione lorda superato: ordine rifiutato")
             return None
 
-        # Registra l'esposizione (in produzione si aggiornerebbe sul fill).
-        self._cluster_exposure[cluster] = cluster_now + add
-        self._gross_exposure += add
-
         # Scalping → ordine limit per controllare lo slippage; altrimenti market.
+        # L'esposizione viene registrata al fill (register_fill) e rilasciata alla
+        # chiusura (release): così un ordine non eseguito non lascia esposizione fantasma.
         order_type = "limit" if sig.horizon.value == "scalping" else "market"
         return Order(
             symbol=sig.symbol,
@@ -100,6 +99,24 @@ class RiskManagerAgent:
             meta={
                 "sources": vsig.sources,
                 "confidence": vsig.aggregate_confidence,
+                "cluster": cluster,
+                "exposure_add": add,
                 "ts": time.time(),
             },
         )
+
+    # --- registrazione/rilascio dell'esposizione (chiamati dal Portfolio) --- #
+    def register_fill(self, symbol: str, cluster: str, exposure_add: float) -> None:
+        """Registra l'esposizione di una posizione effettivamente aperta."""
+        self._cluster_exposure[cluster] = self._cluster_exposure.get(cluster, 0.0) + exposure_add
+        self._gross_exposure += exposure_add
+        self._exposure_by_symbol[symbol] = (cluster, exposure_add)
+
+    def release(self, symbol: str) -> None:
+        """Rilascia l'esposizione alla chiusura della posizione."""
+        entry = self._exposure_by_symbol.pop(symbol, None)
+        if entry is None:
+            return
+        cluster, add = entry
+        self._cluster_exposure[cluster] = max(0.0, self._cluster_exposure.get(cluster, 0.0) - add)
+        self._gross_exposure = max(0.0, self._gross_exposure - add)

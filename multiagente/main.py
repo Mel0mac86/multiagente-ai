@@ -32,17 +32,23 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(messag
 logger = logging.getLogger("multiagente")
 
 
-def build_system() -> dict:
-    """Costruisce e collega tutti i componenti, restituendoli in un dict."""
+DEFAULT_BASE_PRICES = {
+    "BTC/USDT": 65000.0, "ETH/USDT": 3500.0, "USDT/USDC": 1.0,
+    "EUR/USD": 1.08, "USD/TRY": 33.0, "AAPL": 220.0, "SPX": 5600.0,
+    "XAU/USD": 2400.0, "WTI": 78.0,
+}
+
+
+def build_system(feeds: list | None = None) -> dict:
+    """Costruisce e collega tutti i componenti, restituendoli in un dict.
+
+    ``feeds`` permette di iniettare feed custom (es. lo storico per il backtest);
+    se omesso usa due StubFeed (primario + secondario) per la demo live.
+    """
     s = SETTINGS
 
-    # --- feed con failover (primario + secondario) ------------------------ #
-    base_prices = {
-        "BTC/USDT": 65000.0, "ETH/USDT": 3500.0, "USDT/USDC": 1.0,
-        "EUR/USD": 1.08, "USD/TRY": 33.0, "AAPL": 220.0, "SPX": 5600.0,
-        "XAU/USD": 2400.0, "WTI": 78.0,
-    }
-    feeds = [StubFeed("primario", base_prices), StubFeed("secondario", base_prices)]
+    if feeds is None:
+        feeds = [StubFeed("primario", DEFAULT_BASE_PRICES), StubFeed("secondario", DEFAULT_BASE_PRICES)]
     market_data = MarketDataAgent(feeds, s.fault)
 
     classifier = PairClassifierAgent()
@@ -65,7 +71,8 @@ def build_system() -> dict:
     kill = KillSwitch()
     risk = RiskManagerAgent(s.risk, s.capital, kill)
     execution = ExecutionAgent(PaperBroker(), s.fault)
-    portfolio = PortfolioAgent(s.capital, agents_by_name)
+    # on_close=risk.release: alla chiusura di una posizione si libera l'esposizione.
+    portfolio = PortfolioAgent(s.capital, agents_by_name, on_close=risk.release)
     health = HealthMonitor(s.fault)
 
     return dict(
@@ -114,9 +121,9 @@ def run_demo(iterations: int = 5) -> None:
                 fill = execution.execute(order, snap)
                 if fill is None:
                     continue
+                risk.register_fill(order.symbol, order.meta["cluster"], order.meta["exposure_add"])
                 portfolio.on_fill(
-                    fill, order.stop, order.target,
-                    source_agent=vsig.signal.agent, regime=vsig.signal.regime,
+                    fill, order, source_agent=vsig.signal.agent, regime=vsig.signal.regime,
                 )
                 logger.info("ESEGUITO %s %s x%.4f @ %.4f (fonti=%s)",
                             order.side.value, order.symbol, fill.quantity, fill.price, vsig.sources)
