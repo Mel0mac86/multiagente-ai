@@ -71,12 +71,23 @@ scomposti **per agente e per regime**, alimentando lo stesso loop di
 auto-adattamento descritto in `docs/ARCHITETTURA.md` §9.
 
 ```bash
-python -m multiagente.backtest                      # 300 step → report.html
-python -m multiagente.backtest --steps 500 --seed 1 --out report.html
+python -m multiagente.backtest                          # sintetico, 300 step
+python -m multiagente.backtest --source yahoo            # DATI REALI (Yahoo, no key)
+python -m multiagente.backtest --mode walkforward --folds 4 --steps 600
 ```
 
-Con dati reali, sostituisci il generatore sintetico passando un CSV
-(`multiagente/backtest/series.py:load_csv_series`, colonna `close`).
+**Dati reali (Yahoo Finance, nessuna API key).** `--source yahoo` scarica OHLCV
+reali per tutti e 4 i mercati (crypto `BTC-USD`, forex `EURUSD=X`, indici
+`^GSPC`, commodities `GC=F`/`CL=F`, azioni `AAPL`) via `urllib`. Opzioni
+`--range 1y --interval 1d`. Se la rete è bloccata, ricade in automatico sul
+sintetico. Provider in `multiagente/data/providers.py` (estendibile a Binance o
+al proprio broker); in alternativa CSV con `series.py:load_csv_series`.
+
+**Walk-forward (out-of-sample).** `--mode walkforward` divide la storia in fold:
+su ciascuno adatta i parametri *in-sample*, li **congela**, poi misura la
+performance *out-of-sample* mai vista, e concatena i risultati OOS. È la stima
+più onesta della tenuta del sistema (mette alla prova l'auto-adattamento contro
+l'overfitting).
 
 ## Uso su iPhone
 
@@ -86,15 +97,21 @@ Due modi, dal più semplice:
    multiagente.backtest` genera `report.html`: un singolo file responsive (CSS
    e grafico SVG inline, zero dipendenze). Salvalo nell'app **File** o invialo a
    te stesso e aprilo in **Safari** — funziona anche offline.
-2. **Dashboard web interattiva.** Avvia il server su un PC/Mac/VPS e aprilo da
-   Safari sull'iPhone (stessa rete o URL pubblico):
+2. **PWA installabile (dashboard interattiva).** Avvia il server su un
+   PC/Mac/VPS e aprilo da Safari sull'iPhone:
    ```bash
    pip install fastapi uvicorn
    uvicorn multiagente.web.app:app --host 0.0.0.0 --port 8000
    ```
-   Poi visita `http://<ip-del-pc>:8000`. Per eseguire *tutto* sul telefono puoi
-   usare app come **a-Shell** o **Pythonista** (il backtest è puro Python e non
-   richiede dipendenze esterne).
+   Visita `http://<ip-del-pc>:8000` (stessa rete Wi-Fi), poi **Condividi →
+   "Aggiungi alla schermata Home"**: parte a tutto schermo come un'app
+   (manifest + service worker + icone). Pulsanti per scegliere
+   modalità (backtest / walk-forward), sorgente (sintetica / Yahoo), step, seed
+   e numero di fold. Endpoint JSON: `/api/backtest`.
+
+   Per eseguire *tutto* sul telefono (senza un altro PC) usa app come **a-Shell**
+   o **Pythonista**: il backtest è puro Python e non richiede dipendenze esterne
+   (FastAPI serve solo per la dashboard).
 
 ## Avvio rapido
 

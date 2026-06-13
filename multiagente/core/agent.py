@@ -50,8 +50,17 @@ class AdaptiveMixin:
     def __init__(self) -> None:
         self._stats: dict[Regime, PerformanceStats] = defaultdict(PerformanceStats)
         self._quarantined = False
+        self._adaptation_enabled = True
         # Parametri adattivi con guardrail: nome -> (valore, min, max).
         self._params: dict[str, tuple[float, float, float]] = {}
+
+    # --- congelamento dell'adattamento (usato dal walk-forward OOS) -------- #
+    def freeze(self) -> None:
+        """Congela parametri, quarantena e pesi: la fase out-of-sample non adatta."""
+        self._adaptation_enabled = False
+
+    def unfreeze(self) -> None:
+        self._adaptation_enabled = True
 
     # --- parametri adattivi ------------------------------------------------ #
     def register_param(self, name: str, value: float, lo: float, hi: float) -> None:

@@ -139,3 +139,39 @@ def write_report(m: BacktestMetrics, path: str = "report.html", title: str | Non
     with open(path, "w", encoding="utf-8") as f:
         f.write(html_str)
     return path
+
+
+def render_walkforward_html(result, title: str = "Walk-forward (out-of-sample)") -> str:
+    """Report del walk-forward: metriche OOS aggregate + tabella per fold."""
+    base = render_html(result.aggregate, title=title)
+
+    fold_rows = []
+    for f in result.folds:
+        fm = f.metrics
+        ret_cls = "pos" if fm.total_return >= 0 else "neg"
+        fold_rows.append(
+            f"<tr><td>#{f.index + 1}</td><td>{f.train_bars}</td><td>{f.test_bars}</td>"
+            f'<td class="{ret_cls}">{_fmt_pct(fm.total_return)}</td>'
+            f"<td>{fm.sharpe:.2f}</td><td>{_fmt_pct(fm.max_drawdown)}</td>"
+            f"<td>{fm.n_trades}</td></tr>"
+        )
+    table = (
+        "<h2>Fold (in-sample → out-of-sample)</h2><table>"
+        "<tr><th>Fold</th><th>Train (barre)</th><th>Test (barre)</th><th>Rend. OOS</th>"
+        "<th>Sharpe</th><th>Max DD</th><th>Trade</th></tr>"
+        + ("\n".join(fold_rows) or '<tr><td colspan="7">nessun fold</td></tr>')
+        + "</table>"
+    )
+    note = (
+        '<div class="sub" style="margin-top:14px">Le metriche in alto sono '
+        "<b>aggregate sui soli dati out-of-sample</b> (parametri congelati dopo l'in-sample "
+        "di ogni fold), concatenati componendo i rendimenti.</div>"
+    )
+    # inserisce la tabella dei fold prima del footer
+    return base.replace('<div class="foot">', table + note + '<div class="foot">', 1)
+
+
+def write_walkforward_report(result, path: str = "report.html") -> str:
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(render_walkforward_html(result))
+    return path

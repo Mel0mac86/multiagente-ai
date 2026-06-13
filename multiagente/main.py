@@ -78,7 +78,7 @@ def build_system(feeds: list | None = None) -> dict:
     return dict(
         settings=s, market_data=market_data, classifier=classifier, router=router,
         validator=validator, risk=risk, execution=execution, portfolio=portfolio,
-        kill=kill, health=health, llm=llm,
+        kill=kill, health=health, llm=llm, agents_by_name=agents_by_name,
     )
 
 

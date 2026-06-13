@@ -467,9 +467,17 @@ annualizzati, **max drawdown**, **profit factor**, **hit-rate**, numero di trade
 quale contesto* ogni agente genera (o brucia) valore.
 
 **Dati.** Lo scaffold genera serie sintetiche a segmenti di regime
-(trend/range/shock) deterministiche per seed (utile offline). Per dati reali si
-usa `load_csv_series` (CSV con colonna `close`); l'estensione naturale è un
-loader storico dal provider di mercato, mantenendo invariato il resto.
+(trend/range/shock) deterministiche per seed (utile offline) **oppure** scarica
+**dati reali da Yahoo Finance** senza API key (`data/providers.py`,
+`--source yahoo`), coprendo tutti e 4 i mercati. Fallback automatico al sintetico
+se la rete è bloccata. Alternative: CSV (`load_csv_series`) o un provider broker,
+mantenendo invariato il resto della pipeline.
+
+**Walk-forward (validazione OOS).** `backtest/walkforward.py` divide la storia in
+fold a finestra espansiva: su ciascuno adatta i parametri *in-sample*, li congela
+(`StrategyAgent.freeze`), poi misura l'*out-of-sample*; le curve OOS dei fold sono
+concatenate componendo i rendimenti. Mette alla prova l'auto-adattamento (§9)
+contro l'overfitting.
 
 **Realismo e limiti.** Il `PaperBroker` modella spread, slippage e fee; il Risk
 Manager rilascia l'esposizione alla chiusura. Restano semplificazioni tipiche da

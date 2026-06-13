@@ -1,7 +1,13 @@
-"""CLI del backtest: esegue una simulazione e scrive un report HTML.
+"""CLI del backtest: simulazione singola o walk-forward + report HTML.
 
-    python -m multiagente.backtest                 # 300 step, report.html
-    python -m multiagente.backtest --steps 500 --out report.html --seed 1
+    # backtest singolo su dati sintetici (offline)
+    python -m multiagente.backtest
+
+    # dati REALI da Yahoo Finance (nessuna API key)
+    python -m multiagente.backtest --source yahoo --out report.html
+
+    # walk-forward out-of-sample
+    python -m multiagente.backtest --mode walkforward --folds 4 --steps 600
 
 Il report è un file HTML autonomo: aprilo in Safari su iPhone (anche offline).
 """
@@ -11,16 +17,24 @@ from __future__ import annotations
 import argparse
 import logging
 
-from .engine import run_backtest
-from .report import write_report
+from .engine import build_series, run_backtest
+from .report import write_report, write_walkforward_report
+from .walkforward import run_walk_forward
 
 
 def main() -> None:
     p = argparse.ArgumentParser(description="Backtest del sistema multi-agente")
-    p.add_argument("--steps", type=int, default=300, help="numero di barre storiche")
-    p.add_argument("--seed", type=int, default=0, help="seed per le serie sintetiche")
+    p.add_argument("--mode", choices=["single", "walkforward"], default="single")
+    p.add_argument("--source", choices=["synthetic", "yahoo"], default="synthetic",
+                   help="sorgente dati: sintetica (offline) o Yahoo Finance (reale)")
+    p.add_argument("--steps", type=int, default=300, help="barre (sorgente sintetica)")
+    p.add_argument("--seed", type=int, default=0, help="seed (sorgente sintetica)")
+    p.add_argument("--folds", type=int, default=4, help="numero di fold (walk-forward)")
+    p.add_argument("--train-frac", type=float, default=0.5, help="quota in-sample iniziale")
+    p.add_argument("--range", default="1y", help="periodo Yahoo (es. 6mo, 1y, 2y)")
+    p.add_argument("--interval", default="1d", help="intervallo Yahoo (es. 1d, 1h)")
     p.add_argument("--out", default="report.html", help="percorso del report HTML")
-    p.add_argument("--quiet", action="store_true", help="meno log")
+    p.add_argument("--quiet", action="store_true")
     args = p.parse_args()
 
     logging.basicConfig(
@@ -28,13 +42,28 @@ def main() -> None:
         format="%(levelname)s %(name)s: %(message)s",
     )
 
-    metrics = run_backtest(steps=args.steps, seed=args.seed)
-    path = write_report(metrics, args.out)
+    # Per la sorgente Yahoo costruiamo le serie qui (così range/interval valgono).
+    series = None
+    if args.source == "yahoo":
+        series = build_series(source="yahoo", steps=args.steps, seed=args.seed,
+                              range_=args.range, interval=args.interval)
 
-    print(f"\nReport scritto in: {path}")
-    print(f"Rendimento: {metrics.total_return * 100:.2f}%  |  Sharpe: {metrics.sharpe:.2f}  "
-          f"|  Max DD: {metrics.max_drawdown * 100:.2f}%  |  Trade: {metrics.n_trades}  "
-          f"|  Hit-rate: {metrics.hit_rate * 100:.1f}%")
+    if args.mode == "walkforward":
+        result = run_walk_forward(series=series, steps=args.steps, seed=args.seed,
+                                  source=args.source, n_folds=args.folds, train_frac=args.train_frac)
+        path = write_walkforward_report(result, args.out)
+        m = result.aggregate
+        print(f"\nWalk-forward OOS · report: {path}")
+        print(f"Rend. OOS: {m.total_return*100:.2f}%  |  Sharpe: {m.sharpe:.2f}  "
+              f"|  Max DD: {m.max_drawdown*100:.2f}%  |  Trade: {m.n_trades}  |  Fold: {len(result.folds)}")
+        return
+
+    m = run_backtest(series=series, steps=args.steps, seed=args.seed, source=args.source)
+    path = write_report(m, args.out)
+    print(f"\nBacktest · report: {path}")
+    print(f"Rendimento: {m.total_return*100:.2f}%  |  Sharpe: {m.sharpe:.2f}  "
+          f"|  Max DD: {m.max_drawdown*100:.2f}%  |  Trade: {m.n_trades}  "
+          f"|  Hit-rate: {m.hit_rate*100:.1f}%")
 
 
 if __name__ == "__main__":
