@@ -27,8 +27,10 @@ def main() -> None:
     p.add_argument("--mode", choices=["single", "walkforward"], default="single")
     p.add_argument("--source", choices=["synthetic", "yahoo", "files"], default="synthetic",
                    help="dati: sintetica (offline), Yahoo (reale), files (tuoi CSV)")
-    p.add_argument("--data-dir", help="cartella dei tuoi CSV (con --source files)")
+    p.add_argument("--data-dir", help="cartella o .zip dei tuoi CSV (con --source files)")
     p.add_argument("--tf", help="timeframe da caricare, es. 1h, 15m, 1d (con --source files)")
+    p.add_argument("--by-tf", action="store_true",
+                   help="esegue un backtest per OGNI timeframe presente nei dati")
     p.add_argument("--steps", type=int, default=300, help="barre (sorgente sintetica)")
     p.add_argument("--seed", type=int, default=0, help="seed (sorgente sintetica)")
     p.add_argument("--folds", type=int, default=4, help="numero di fold (walk-forward)")
@@ -43,6 +45,20 @@ def main() -> None:
         level=logging.WARNING if args.quiet else logging.INFO,
         format="%(levelname)s %(name)s: %(message)s",
     )
+
+    # Backtest multi-timeframe: un backtest per ogni TF presente nei dati.
+    if args.by_tf:
+        if args.source != "files" or not args.data_dir:
+            p.error("--by-tf richiede --source files --data-dir <cartella|zip>")
+        from .engine import TF_TO_HORIZON, run_backtest_by_tf
+        from .report import write_multi_tf_report
+        results = run_backtest_by_tf(args.data_dir)
+        path = write_multi_tf_report(results, args.out)
+        print(f"\nBacktest multi-timeframe · report: {path}")
+        for tf, m in results.items():
+            print(f"  {tf:4} ({TF_TO_HORIZON.get(tf,'?'):11}) rend {m.total_return*100:+6.2f}%  "
+                  f"Sharpe {m.sharpe:+.2f}  trade {m.n_trades}")
+        return
 
     # Per Yahoo/files costruiamo le serie qui (così range/interval/data-dir valgono).
     series = None

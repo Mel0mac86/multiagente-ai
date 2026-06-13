@@ -196,6 +196,36 @@ def load_dataset(data_dir: str, tf: str | None = None) -> dict[str, list[Bar]]:
     cartella temporanea e scansionato. Riconosce sia ``SIMBOLO_TF.csv`` sia
     ``SIMBOLO/TF.csv``. Ritorna ``{simbolo_interno: [Bar, ...]}``.
     """
+    data_dir = _maybe_unzip(data_dir)
+    want = _norm_tf(tf) if tf else None
+    out: dict[str, list[Bar]] = {}
+    for symbol, file_tf, bars, fn in _iter_dataset(data_dir):
+        if want is not None and file_tf != want:
+            continue
+        out[symbol] = bars
+        logger.info("Caricato %s (%s) <- %s [%d barre]", symbol, file_tf, fn, len(bars))
+    if not out:
+        raise ValueError(f"nessun file caricato da {data_dir} (tf={tf})")
+    return out
+
+
+def load_dataset_by_tf(data_dir: str) -> dict[str, dict[str, list[Bar]]]:
+    """Carica tutto raggruppando per timeframe: ``{tf: {simbolo: [Bar, ...]}}``.
+
+    Evita la collisione di simboli quando lo stesso strumento è presente su più
+    timeframe (es. BTC/USDT su 15m e 1h). Usato dal backtest multi-timeframe.
+    """
+    data_dir = _maybe_unzip(data_dir)
+    out: dict[str, dict[str, list[Bar]]] = {}
+    for symbol, file_tf, bars, fn in _iter_dataset(data_dir):
+        out.setdefault(file_tf, {})[symbol] = bars
+        logger.info("Caricato %s (%s) <- %s [%d barre]", symbol, file_tf, fn, len(bars))
+    if not out:
+        raise ValueError(f"nessun file caricato da {data_dir}")
+    return out
+
+
+def _maybe_unzip(data_dir: str) -> str:
     import tempfile
     import zipfile
 
@@ -204,10 +234,12 @@ def load_dataset(data_dir: str, tf: str | None = None) -> dict[str, list[Bar]]:
         with zipfile.ZipFile(data_dir) as zf:
             zf.extractall(tmp)
         logger.info("ZIP estratto in %s", tmp)
-        data_dir = tmp
+        return tmp
+    return data_dir
 
-    want = _norm_tf(tf) if tf else None
-    out: dict[str, list[Bar]] = {}
+
+def _iter_dataset(data_dir: str):
+    """Genera ``(simbolo, timeframe, bars, filename)`` per ogni file valido."""
     for root, _dirs, files in os.walk(data_dir):
         for fn in files:
             if fn.startswith(".") or fn.startswith("__"):
@@ -218,20 +250,13 @@ def load_dataset(data_dir: str, tf: str | None = None) -> dict[str, list[Bar]]:
             stem = os.path.splitext(fn)[0]
             sub = os.path.basename(root)
             sym_raw, file_tf = _parse_name(stem)
-            # se il timeframe non è nel nome file, prova dalla sottocartella
             if file_tf is None and sub:
                 file_tf = _norm_tf(sub)
             symbol = _symbol_from_name(sym_raw or sub)
-            if want is not None and want not in {file_tf, _norm_tf(sub)}:
-                continue
             file_tf = file_tf or "?"
             try:
                 bars = load_ohlcv_file(path)
             except (ValueError, OSError) as exc:
                 logger.warning("Salto %s: %s", path, exc)
                 continue
-            out[symbol] = bars
-            logger.info("Caricato %s (%s) <- %s [%d barre]", symbol, file_tf, fn, len(bars))
-    if not out:
-        raise ValueError(f"nessun file caricato da {data_dir} (tf={tf})")
-    return out
+            yield symbol, file_tf, bars, fn

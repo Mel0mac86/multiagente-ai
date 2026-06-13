@@ -192,16 +192,46 @@ def run_backtest(
     seed: int = 0,
     series: dict[str, list[Bar]] | None = None,
     source: str = "synthetic",
+    periods_per_year: int = 252,
 ) -> BacktestMetrics:
     """Esegue un backtest singolo e restituisce le metriche."""
     if series is None:
         series = build_series(source=source, base_prices=base_prices, steps=steps, seed=seed)
 
     res = _simulate(series)
-    metrics = compute_metrics(res.initial_equity, res.equity_curve, res.trades)
+    metrics = compute_metrics(res.initial_equity, res.equity_curve, res.trades,
+                              periods_per_year=periods_per_year)
     logger.info(
         "Backtest: %d step, %d trade, rendimento %.2f%%, Sharpe %.2f, maxDD %.2f%%",
         res.steps, metrics.n_trades, metrics.total_return * 100, metrics.sharpe,
         metrics.max_drawdown * 100,
     )
     return metrics
+
+
+# mappa timeframe -> orizzonte naturale (solo informativa, per il report)
+TF_TO_HORIZON = {
+    "1m": "scalping", "5m": "scalping", "15m": "day_trading", "30m": "day_trading",
+    "1h": "day_trading", "4h": "day_trading", "1d": "investor", "1w": "investor",
+}
+
+
+def run_backtest_by_tf(data_dir: str) -> dict[str, BacktestMetrics]:
+    """Backtest multi-timeframe: un backtest per ciascun TF presente nei dati.
+
+    Ogni timeframe è replicato separatamente (le serie non sono fuse) e mappato
+    al suo orizzonte naturale; lo Sharpe è annualizzato per TF. Ritorna
+    ``{tf: BacktestMetrics}``.
+    """
+    from ..data.loaders import load_dataset_by_tf
+    from .metrics import periods_per_year_for_tf
+
+    by_tf = load_dataset_by_tf(data_dir)
+    out: dict[str, BacktestMetrics] = {}
+    for tf in sorted(by_tf, key=lambda t: list(TF_TO_HORIZON).index(t) if t in TF_TO_HORIZON else 99):
+        series = by_tf[tf]
+        m = run_backtest(series=series, periods_per_year=periods_per_year_for_tf(tf))
+        out[tf] = m
+        logger.info("[%s · %s] rend %.2f%%, Sharpe %.2f, %d trade",
+                    tf, TF_TO_HORIZON.get(tf, "?"), m.total_return * 100, m.sharpe, m.n_trades)
+    return out

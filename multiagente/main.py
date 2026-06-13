@@ -28,7 +28,6 @@ from .risk.risk_manager import RiskManagerAgent
 from .execution.execution import ExecutionAgent, PaperBroker
 from .portfolio.portfolio import PortfolioAgent
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("multiagente")
 
 
@@ -140,4 +139,5 @@ def run_demo(iterations: int = 5) -> None:
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     run_demo()

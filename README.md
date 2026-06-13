@@ -74,8 +74,14 @@ auto-adattamento descritto in `docs/ARCHITETTURA.md` §9.
 python -m multiagente.backtest                          # sintetico, 300 step
 python -m multiagente.backtest --source yahoo            # DATI REALI (Yahoo, no key)
 python -m multiagente.backtest --source files --data-dir ./dati --tf 1h   # I TUOI CSV
+python -m multiagente.backtest --source files --data-dir ./dati.zip --by-tf  # ogni TF
 python -m multiagente.backtest --mode walkforward --folds 4 --steps 600
 ```
+
+**Multi-timeframe.** `--by-tf` scopre da solo tutti i timeframe presenti nei
+dati ed esegue un backtest per ciascuno, mappandolo al suo orizzonte naturale
+(`1m/5m`→scalping, `15m–4h`→day trading, `1d/1w`→investor) con Sharpe
+annualizzato per TF; produce un unico report con la sintesi per timeframe.
 
 **I tuoi storici (consigliato).** Se hai già i dati divisi per timeframe, usali
 direttamente: `--source files --data-dir <cartella> --tf 1h`. Il loader

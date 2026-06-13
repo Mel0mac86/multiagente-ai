@@ -175,3 +175,34 @@ def write_walkforward_report(result, path: str = "report.html") -> str:
     with open(path, "w", encoding="utf-8") as f:
         f.write(render_walkforward_html(result))
     return path
+
+
+def render_multi_tf_html(results: dict, title: str = "Backtest multi-timeframe") -> str:
+    """Report con una riga di sintesi per timeframe + il dettaglio del primo TF."""
+    from .engine import TF_TO_HORIZON
+
+    rows = []
+    for tf, m in results.items():
+        ret_cls = "pos" if m.total_return >= 0 else "neg"
+        rows.append(
+            f"<tr><td>{tf}</td><td>{TF_TO_HORIZON.get(tf, '?')}</td>"
+            f'<td class="{ret_cls}">{_fmt_pct(m.total_return)}</td>'
+            f"<td>{m.sharpe:.2f}</td><td>{_fmt_pct(m.max_drawdown)}</td>"
+            f"<td>{m.n_trades}</td><td>{_fmt_pct(m.hit_rate)}</td></tr>"
+        )
+    summary = (
+        "<h2>Sintesi per timeframe → orizzonte</h2><table>"
+        "<tr><th>TF</th><th>Orizzonte</th><th>Rend.</th><th>Sharpe</th>"
+        "<th>Max DD</th><th>Trade</th><th>Hit-rate</th></tr>"
+        + "\n".join(rows) + "</table>"
+    )
+    # dettaglio completo del primo timeframe (per agente/regime + curva)
+    first = next(iter(results.values()))
+    detail = render_html(first, title=f"{title} · dettaglio {next(iter(results))}")
+    return detail.replace('<div class="grid">', summary + '<div class="grid">', 1)
+
+
+def write_multi_tf_report(results: dict, path: str = "report.html") -> str:
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(render_multi_tf_html(results))
+    return path

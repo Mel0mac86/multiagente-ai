@@ -121,3 +121,16 @@ def _accumulate(d: dict[str, AgentBreakdown], key: str, t: Trade) -> None:
         b.gross_profit += t.pnl
     else:
         b.gross_loss += t.pnl
+
+
+# Barre per anno per timeframe, per annualizzare correttamente lo Sharpe.
+# Approssimazione mercato continuo/azionario; per crypto 24/7 i valori intraday
+# sono leggermente sottostimati ma il confronto relativo resta valido.
+_PERIODS_PER_YEAR = {
+    "1m": 252 * 390, "5m": 252 * 78, "15m": 252 * 26, "30m": 252 * 13,
+    "1h": 252 * 7, "4h": 252 * 2, "1d": 252, "1w": 52, "1mo": 12,
+}
+
+
+def periods_per_year_for_tf(tf: str) -> int:
+    return _PERIODS_PER_YEAR.get(tf, 252)
